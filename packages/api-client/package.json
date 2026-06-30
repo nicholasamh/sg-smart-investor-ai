@@ -1,0 +1,20 @@
+{
+  "name": "@sg-investor/api-client",
+  "version": "1.0.0",
+  "description": "Shared API client for SG Smart Investor AI",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@sg-investor/types": "*",
+    "axios": "^1.6.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.10.6"
+  }
+}

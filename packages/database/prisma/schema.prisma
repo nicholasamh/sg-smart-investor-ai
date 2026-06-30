@@ -1,0 +1,636 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== User Models ====================
+
+model User {
+  id                    String     @id @default(cuid())
+  email                 String     @unique
+  password              String?
+  firstName             String?
+  lastName              String?
+  avatar                String?
+  
+  // Authentication
+  googleId              String?    @unique
+  appleId               String?    @unique
+  emailVerified         Boolean    @default(false)
+  emailVerifiedAt       DateTime?
+  
+  // User Preferences
+  riskLevel             RiskLevel  @default(BALANCED)
+  notificationFrequency String     @default("hourly")  // hourly, daily, weekly
+  preferredSectors      String[]   @default([])         // JSON array
+  dividendPreference    Boolean    @default(true)
+  minimumBuyScore       Int        @default(60)
+  darkMode              Boolean    @default(true)
+  aiProvider            String     @default("openai")  // openai, claude, gemini
+  
+  // Account
+  accountCurrency       String     @default("SGD")
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  deletedAt             DateTime?
+  
+  // Relations
+  portfolio             Portfolio?
+  watchlist             Watchlist?
+  alerts                PriceAlert[]
+  holdings              Holding[]
+  aiChats               AIChat[]
+  auditLogs             AuditLog[]
+  
+  @@index([email])
+  @@index([googleId])
+  @@index([appleId])
+}
+
+enum RiskLevel {
+  CONSERVATIVE
+  BALANCED
+  AGGRESSIVE
+}
+
+// ==================== Portfolio Models ====================
+
+model Portfolio {
+  id                    String     @id @default(cuid())
+  userId                String     @unique
+  user                  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Portfolio Metrics
+  totalValue            Float      @default(0)
+  totalCost             Float      @default(0)
+  totalProfit           Float      @default(0)
+  totalProfitPercentage Float      @default(0)
+  todayProfit           Float      @default(0)
+  todayProfitPercentage Float      @default(0)
+  
+  // Allocation
+  sectorAllocation      String     @default("{}")       // JSON
+  riskScore             Float      @default(0)
+  diversificationScore  Float      @default(0)
+  
+  // Dividends
+  annualDividendIncome  Float      @default(0)
+  expectedDividends    String     @default("[]")       // JSON array
+  
+  // Metadata
+  lastUpdated           DateTime   @default(now())
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  
+  // Relations
+  holdings              Holding[]
+  dividendRecords       DividendRecord[]
+  
+  @@index([userId])
+}
+
+model Holding {
+  id                    String     @id @default(cuid())
+  portfolioId           String
+  portfolio             Portfolio  @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  userId                String
+  user                  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  stockSymbol           String
+  quantity              Float
+  averageCost           Float
+  currentPrice          Float      @default(0)
+  totalCost             Float
+  currentValue          Float      @default(0)
+  profit                Float      @default(0)
+  profitPercentage      Float      @default(0)
+  
+  // Dividends
+  totalDividendReceived Float      @default(0)
+  annualDividendYield   Float      @default(0)
+  
+  acquisitionDate       DateTime
+  notes                 String?
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  
+  @@unique([portfolioId, stockSymbol])
+  @@index([userId])
+  @@index([stockSymbol])
+}
+
+// ==================== Stock & Market Data Models ====================
+
+model Stock {
+  id                    String     @id @default(cuid())
+  symbol                String     @unique
+  name                  String
+  sector                String
+  industry              String?
+  
+  // Current Price Data
+  currentPrice          Float      @default(0)
+  dayChange            Float      @default(0)
+  dayChangePercent     Float      @default(0)
+  dayOpen              Float      @default(0)
+  dayHigh              Float      @default(0)
+  dayLow               Float      @default(0)
+  
+  // Volume & Market Data
+  volume               Float      @default(0)
+  marketCap            Float      @default(0)
+  sharesOutstanding    Float      @default(0)
+  
+  // Technical Indicators
+  ema20                Float      @default(0)
+  ema50                Float      @default(0)
+  ema200               Float      @default(0)
+  rsi14                Float      @default(0)
+  macdLine             Float      @default(0)
+  macdSignal           Float      @default(0)
+  bollingerUpper       Float      @default(0)
+  bollingerLower       Float      @default(0)
+  
+  // 52 Week Data
+  weekHigh52           Float      @default(0)
+  weekLow52            Float      @default(0)
+  
+  // Fundamental Data
+  peRatio              Float      @default(0)
+  pbRatio              Float      @default(0)
+  dividendYield        Float      @default(0)
+  eps                  Float      @default(0)
+  bookValue            Float      @default(0)
+  roe                  Float      @default(0)
+  debtRatio            Float      @default(0)
+  revenueGrowth        Float      @default(0)
+  epsGrowth            Float      @default(0)
+  netMargin            Float      @default(0)
+  
+  // AI Analysis
+  aiScore              Int        @default(0)  // 0-100
+  aiConfidence         Float      @default(0)  // 0-100
+  sentimentScore       Int        @default(0)  // -100 to +100
+  recommendation       String     @default("NONE")  // STRONG_BUY, BUY, WATCH, NONE
+  recommendationReason String?
+  
+  // Metadata
+  lastUpdated          DateTime   @default(now())
+  priceUpdatedAt       DateTime   @default(now())
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  
+  // Relations
+  priceHistory         PriceHistory[]
+  watchlistItems       WatchlistItem[]
+  alerts               PriceAlert[]
+  news                 StockNews[]
+  technicalAnalysis    TechnicalAnalysis?
+  fundamentalAnalysis  FundamentalAnalysis?
+  dividends            Dividend[]
+  earnings             Earnings[]
+  
+  @@index([symbol])
+  @@index([sector])
+  @@index([aiScore])
+  @@index([recommendation])
+}
+
+model REIT {
+  id                    String     @id @default(cuid())
+  symbol                String     @unique
+  name                  String
+  sector                String
+  
+  // Current Price Data
+  currentPrice          Float      @default(0)
+  dayChange            Float      @default(0)
+  dayChangePercent     Float      @default(0)
+  
+  // Dividend Data
+  dividendYield        Float      @default(0)
+  distributionPerUnit  Float      @default(0)
+  distributionFrequency String     @default("quarterly")
+  
+  // REIT Specific
+  unitsOutstanding     Float      @default(0)
+  marketCap            Float      @default(0)
+  
+  // AI Analysis
+  aiScore              Int        @default(0)
+  recommendation       String     @default("NONE")
+  
+  lastUpdated          DateTime   @default(now())
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  
+  // Relations
+  watchlistItems       WatchlistItem[]
+  dividends            Dividend[]
+  
+  @@index([symbol])
+}
+
+model ETF {
+  id                    String     @id @default(cuid())
+  symbol                String     @unique
+  name                  String
+  category              String
+  
+  currentPrice          Float      @default(0)
+  dayChange            Float      @default(0)
+  dayChangePercent     Float      @default(0)
+  volume               Float      @default(0)
+  marketCap            Float      @default(0)
+  
+  expenseRatio         Float      @default(0)
+  dividendYield        Float      @default(0)
+  
+  lastUpdated          DateTime   @default(now())
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  
+  // Relations
+  watchlistItems       WatchlistItem[]
+  dividends            Dividend[]
+  
+  @@index([symbol])
+}
+
+// ==================== Market Index Models ====================
+
+model MarketIndex {
+  id                    String     @id @default(cuid())
+  symbol                String     @unique  // STI, FTSE, etc
+  name                  String
+  
+  currentValue          Float      @default(0)
+  dayChange            Float      @default(0)
+  dayChangePercent     Float      @default(0)
+  dayOpen              Float      @default(0)
+  dayHigh              Float      @default(0)
+  dayLow               Float      @default(0)
+  volume               Float      @default(0)
+  
+  lastUpdated          DateTime   @default(now())
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  
+  @@index([symbol])
+}
+
+// ==================== Price History Models ====================
+
+model PriceHistory {
+  id                    String     @id @default(cuid())
+  stockId               String
+  stock                 Stock      @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  
+  timestamp             DateTime
+  open                  Float
+  high                  Float
+  low                   Float
+  close                 Float
+  volume               Float
+  
+  @@unique([stockId, timestamp])
+  @@index([stockId])
+  @@index([timestamp])
+}
+
+model Watchlist {
+  id                    String     @id @default(cuid())
+  userId                String     @unique
+  user                  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  items                 WatchlistItem[]
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  
+  @@index([userId])
+}
+
+model WatchlistItem {
+  id                    String     @id @default(cuid())
+  watchlistId           String
+  watchlist             Watchlist  @relation(fields: [watchlistId], references: [id], onDelete: Cascade)
+  
+  stockId               String?
+  stock                 Stock?     @relation(fields: [stockId], references: [id], onDelete: SetNull)
+  reitId                String?
+  reit                  REIT?      @relation(fields: [reitId], references: [id], onDelete: SetNull)
+  etfId                 String?
+  etf                   ETF?       @relation(fields: [etfId], references: [id], onDelete: SetNull)
+  
+  symbol                String      // Duplicate for quick access
+  type                  String      // STOCK, REIT, ETF
+  notes                 String?
+  addedAt               DateTime   @default(now())
+  
+  @@unique([watchlistId, symbol])
+  @@index([watchlistId])
+  @@index([symbol])
+}
+
+// ==================== Alert Models ====================
+
+model PriceAlert {
+  id                    String     @id @default(cuid())
+  userId                String
+  user                  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  stockId               String
+  stock                 Stock      @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  
+  alertType             String     // PRICE_ABOVE, PRICE_BELOW, PERCENT_CHANGE
+  targetPrice           Float?
+  targetPercent         Float?
+  
+  isActive              Boolean    @default(true)
+  triggered             Boolean    @default(false)
+  triggeredAt           DateTime?
+  
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  
+  @@index([userId])
+  @@index([stockId])
+}
+
+// ==================== News & Sentiment Models ====================
+
+model StockNews {
+  id                    String     @id @default(cuid())
+  stockId               String
+  stock                 Stock      @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  
+  headline              String
+  summary               String     @db.Text
+  content               String?    @db.Text
+  source                String
+  sourceUrl             String?
+  imageUrl              String?
+  
+  sentiment             String     @default("NEUTRAL")  // POSITIVE, NEGATIVE, NEUTRAL
+  sentimentScore        Float      @default(0)        // -1 to 1
+  impactLevel           String     @default("LOW")     // LOW, MEDIUM, HIGH
+  
+  publishedAt           DateTime
+  createdAt             DateTime   @default(now())
+  
+  @@index([stockId])
+  @@index([sentiment])
+  @@index([publishedAt])
+}
+
+model NewsAnalysis {
+  id                    String     @id @default(cuid())
+  headline              String
+  summary               String     @db.Text
+  content               String?    @db.Text
+  
+  category              String     // MARKET, EARNINGS, DIVIDEND, M&A, etc
+  sentiment             String     @default("NEUTRAL")
+  sentimentScore        Float      @default(0)
+  riskLevel             String     @default("MEDIUM")
+  
+  affectedSymbols       String[]   @default([])
+  recommendations       String     @default("{}")  // JSON
+  
+  source                String
+  sourceUrl             String?
+  publishedAt           DateTime
+  
+  analyzed              Boolean    @default(true)
+  createdAt             DateTime   @default(now())
+  
+  @@index([publishedAt])
+  @@index([category])
+}
+
+// ==================== Technical & Fundamental Analysis Models ====================
+
+model TechnicalAnalysis {
+  id                    String     @id @default(cuid())
+  stockId               String     @unique
+  stock                 Stock      @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  
+  // Support/Resistance
+  supportLevel1         Float      @default(0)
+  supportLevel2         Float      @default(0)
+  resistanceLevel1      Float      @default(0)
+  resistanceLevel2      Float      @default(0)
+  
+  // Patterns
+  candlePattern         String?    // HAMMER, ENGULFING, DOJI, etc
+  trendDirection        String     @default("NEUTRAL")  // UPTREND, DOWNTREND, NEUTRAL
+  
+  // Crossovers
+  goldenCross           Boolean    @default(false)
+  deathCross            Boolean    @default(false)
+  
+  // Volume
+  volumeBreakout        Boolean    @default(false)
+  averageVolume         Float      @default(0)
+  
+  // Bollinger Bands
+  bollingerMiddle        Float      @default(0)
+  bollingerBandWidth    Float      @default(0)
+  
+  lastAnalyzed          DateTime   @default(now())
+  
+  @@index([stockId])
+}
+
+model FundamentalAnalysis {
+  id                    String     @id @default(cuid())
+  stockId               String     @unique
+  stock                 Stock      @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  
+  // Growth Metrics
+  revenueGrowthYoY      Float      @default(0)
+  epsGrowthYoY          Float      @default(0)
+  dividendGrowthYoY     Float      @default(0)
+  
+  // Profitability
+  grossMargin           Float      @default(0)
+  operatingMargin       Float      @default(0)
+  netMargin             Float      @default(0)
+  
+  // Efficiency
+  roe                   Float      @default(0)
+  roa                   Float      @default(0)
+  
+  // Valuation
+  priceToBook           Float      @default(0)
+  priceToSales          Float      @default(0)
+  enterpriseValue       Float      @default(0)
+  
+  // Health
+  currentRatio          Float      @default(0)
+  quickRatio            Float      @default(0)
+  debtToEquity          Float      @default(0)
+  
+  // Cash Flow
+  operatingCashFlow     Float      @default(0)
+  freeCashFlow          Float      @default(0)
+  
+  lastAnalyzed          DateTime   @default(now())
+  
+  @@index([stockId])
+}
+
+// ==================== Dividend & Earnings Models ====================
+
+model Dividend {
+  id                    String     @id @default(cuid())
+  
+  stockId               String?
+  stock                 Stock?     @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  reitId                String?
+  reit                  REIT?      @relation(fields: [reitId], references: [id], onDelete: Cascade)
+  etfId                 String?
+  etf                   ETF?       @relation(fields: [etfId], references: [id], onDelete: Cascade)
+  
+  symbol                String
+  dividendPerShare      Float
+  dividentType          String     @default("CASH")   // CASH, BONUS
+  exDate                DateTime
+  paymentDate           DateTime
+  announcementDate      DateTime?
+  recordDate            DateTime?
+  
+  yield                 Float      @default(0)
+  createdAt             DateTime   @default(now())
+  
+  @@index([symbol])
+  @@index([exDate])
+}
+
+model Earnings {
+  id                    String     @id @default(cuid())
+  stockId               String
+  stock                 Stock      @relation(fields: [stockId], references: [id], onDelete: Cascade)
+  
+  symbol                String
+  quarter               String     // Q1, Q2, Q3, Q4
+  fiscalYear            Int
+  
+  eps                   Float      @default(0)
+  revenue               Float      @default(0)
+  netIncome             Float      @default(0)
+  
+  estimatedEps          Float?
+  estimatedRevenue      Float?
+  
+  announcementDate      DateTime
+  timeOfDay             String     @default("BMO")    // BMO, AMC, AFTER
+  
+  createdAt             DateTime   @default(now())
+  
+  @@unique([stockId, quarter, fiscalYear])
+  @@index([symbol])
+  @@index([announcementDate])
+}
+
+model DividendRecord {
+  id                    String     @id @default(cuid())
+  portfolioId           String
+  portfolio             Portfolio  @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  
+  symbol                String
+  quantity              Float
+  dividendPerShare      Float
+  totalDividendReceived Float
+  
+  exDate                DateTime
+  paymentDate           DateTime
+  
+  createdAt             DateTime   @default(now())
+  
+  @@index([portfolioId])
+  @@index([symbol])
+}
+
+// ==================== AI Models ====================
+
+model AIChat {
+  id                    String     @id @default(cuid())
+  userId                String
+  user                  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  topic                 String     // RECOMMENDATION, COMPARISON, ANALYSIS, etc
+  query                 String     @db.Text
+  response              String     @db.Text
+  
+  contextSymbols        String[]   @default([])
+  aiProvider            String     @default("openai")
+  
+  isHelpful             Boolean?
+  feedback              String?
+  
+  createdAt             DateTime   @default(now())
+  
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ==================== System Models ====================
+
+model AuditLog {
+  id                    String     @id @default(cuid())
+  userId                String
+  user                  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  action                String
+  resource              String
+  resourceId            String
+  changes               String     @db.Text  // JSON
+  ipAddress             String?
+  userAgent             String?
+  
+  createdAt             DateTime   @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model SystemConfig {
+  id                    String     @id @default(cuid())
+  key                   String     @unique
+  value                 String     @db.Text
+  description           String?
+  updatedAt             DateTime   @updatedAt
+}
+
+model AnalysisJob {
+  id                    String     @id @default(cuid())
+  jobType               String     // TECHNICAL, FUNDAMENTAL, SENTIMENT
+  symbol                String
+  
+  status                String     @default("PENDING")  // PENDING, RUNNING, COMPLETED, FAILED
+  startedAt             DateTime?
+  completedAt           DateTime?
+  result                String?    @db.Text  // JSON
+  error                 String?
+  
+  retryCount            Int        @default(0)
+  maxRetries            Int        @default(3)
+  
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  
+  @@index([jobType])
+  @@index([symbol])
+  @@index([status])
+  @@index([createdAt])
+}
