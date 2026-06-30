@@ -1,0 +1,34 @@
+{
+  "name": "sg-smart-investor-ai",
+  "version": "1.0.0",
+  "description": "Production-ready PWA for monitoring Singapore shares with AI recommendations",
+  "private": true,
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w apps/frontend\" \"npm run dev -w apps/backend\"",
+    "build": "npm run build -w apps/frontend && npm run build -w apps/backend",
+    "test": "npm run test -w apps/frontend && npm run test -w apps/backend",
+    "test:coverage": "npm run test:coverage -w apps/frontend && npm run test:coverage -w apps/backend",
+    "lint": "npm run lint -w apps/frontend && npm run lint -w apps/backend",
+    "format": "npm run format -w apps/frontend && npm run format -w apps/backend",
+    "type-check": "npm run type-check -w apps/frontend && npm run type-check -w apps/backend",
+    "db:migrate": "npm run migrate -w packages/database",
+    "db:seed": "npm run seed -w packages/database",
+    "docker:build": "docker build -t sg-smart-investor-ai:latest .",
+    "docker:run": "docker-compose up -d"
+  },
+  "workspaces": [
+    "apps/frontend",
+    "apps/backend",
+    "packages/database",
+    "packages/api-client",
+    "packages/types"
+  ],
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
+  }
+}

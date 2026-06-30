@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sg-investor-postgres
+    environment:
+      POSTGRES_USER: investor
+      POSTGRES_PASSWORD: secure_password_change_me
+      POSTGRES_DB: sg_smart_investor
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U investor"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sg-investor-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: sg-investor-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - sg-investor-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    container_name: sg-investor-backend
+    environment:
+      DATABASE_URL: postgresql://investor:secure_password_change_me@postgres:5432/sg_smart_investor
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: development
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/backend:/app/apps/backend
+      - /app/apps/backend/node_modules
+    networks:
+      - sg-investor-network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    container_name: sg-investor-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: http://backend:3001
+      NEXT_PUBLIC_APP_NAME: SG Smart Investor AI
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ./apps/frontend:/app/apps/frontend
+      - /app/apps/frontend/node_modules
+      - /app/apps/frontend/.next
+    networks:
+      - sg-investor-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  sg-investor-network:
+    driver: bridge
